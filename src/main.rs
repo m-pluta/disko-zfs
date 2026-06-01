@@ -240,6 +240,24 @@ trait ActionProducer {
     fn produce_error(&mut self, error: String);
 }
 
+static ZFS_PROPERTY_ALIASES: &[(&str, &[(&str, &str)])] = &[
+    ("acltype", &[("posixacl", "posix"), ("noacl", "off")]),
+    ("xattr", &[("sa", "on")]),
+];
+
+fn normalize_zfs_value(property_name: &str, value: &str) -> String {
+    for &(prop, aliases) in ZFS_PROPERTY_ALIASES {
+        if prop == property_name {
+            for &(alias, canonical) in aliases {
+                if value == alias || value == canonical {
+                    return canonical.to_owned();
+                }
+            }
+        }
+    }
+    value.to_owned()
+}
+
 macro_rules! filter_by_pats {
     ( $iterator:expr, $pats:expr ) => {
         $iterator.filter(|(key, _)| $pats.iter().all(|pat| !pat.matches(key)))
@@ -367,6 +385,23 @@ where
                     desired_property.value.to_string()
                 );
                 continue;
+            }
+
+            if let (PropertyValue::String(actual), PropertyValue::String(desired)) =
+                (&actual_property.value, &desired_property.value)
+            {
+                if normalize_zfs_value(desired_property_name, actual)
+                    == normalize_zfs_value(desired_property_name, desired)
+                {
+                    log::trace!(
+                        "dataset {} property {} set to {}, equivalent to {}, skip",
+                        dataset_name,
+                        desired_property_name,
+                        actual_property.value.to_string(),
+                        desired_property.value.to_string()
+                    );
+                    continue;
+                }
             }
 
             log::trace!(
