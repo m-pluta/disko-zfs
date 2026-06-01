@@ -587,18 +587,33 @@ fn main() -> Result<(), ZfsDiskoError> {
                 (Box::new(stdout), "> ".to_string())
             };
 
-            writeln!(&mut output, "# Additive Commands")
-                .map_err(ZfsDiskoError::WriteStdoutFailed)?;
+            let additive = actions.to_additive_commands();
+            let destructive = actions.to_destructive_commands();
 
-            for command in actions.to_additive_commands() {
-                write_command(&mut output, &prefix, command)?;
-            }
-
-            writeln!(&mut output, "# !! Destructive Commands !!")
-                .map_err(ZfsDiskoError::WriteStdoutFailed)?;
-
-            for command in actions.to_destructive_commands() {
-                write_command(&mut output, &prefix, command)?;
+            if additive.is_empty() && destructive.is_empty() {
+                writeln!(&mut output, "# No changes needed")
+                    .map_err(ZfsDiskoError::WriteStdoutFailed)?;
+            } else {
+                if additive.is_empty() {
+                    writeln!(&mut output, "# No additive commands required")
+                        .map_err(ZfsDiskoError::WriteStdoutFailed)?;
+                } else {
+                    writeln!(&mut output, "# Additive Commands")
+                        .map_err(ZfsDiskoError::WriteStdoutFailed)?;
+                    for command in additive {
+                        write_command(&mut output, &prefix, command)?;
+                    }
+                }
+                if destructive.is_empty() {
+                    writeln!(&mut output, "# No destructive commands required")
+                        .map_err(ZfsDiskoError::WriteStdoutFailed)?;
+                } else {
+                    writeln!(&mut output, "# !! Destructive Commands !!")
+                        .map_err(ZfsDiskoError::WriteStdoutFailed)?;
+                    for command in destructive {
+                        write_command(&mut output, &prefix, command)?;
+                    }
+                }
             }
 
             Ok(())
