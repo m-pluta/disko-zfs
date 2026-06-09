@@ -39,7 +39,7 @@ impl PropertySource {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub enum PropertyValue {
     Number(u64),
     String(String),
@@ -50,6 +50,73 @@ impl PropertyValue {
         match self {
             PropertyValue::Number(num) => num.to_string(),
             PropertyValue::String(string) => string.clone(),
+        }
+    }
+}
+
+// According to zfs_nicestrtonum in zfs/lib/libzfs/libzfs_util.c
+fn parse_number_with_suffix<S>(str: S) -> Option<u64>
+where
+    S: AsRef<str>,
+{
+    let str = str.as_ref();
+
+    let (number_part, suffix_part) = match str.find(|c| !matches!(c, '0'..='9' | '.')) {
+        Some(i) => str.split_at(i),
+        None => (str, ""),
+    };
+
+    let shift = match suffix_part.to_ascii_uppercase().as_str() {
+        "" | "B" => 0,
+        "K" | "KB" | "KIB" => 10,
+        "M" | "MB" | "MIB" => 20,
+        "G" | "GB" | "GIB" => 30,
+        "T" | "TB" | "TIB" => 40,
+        "P" | "PB" | "PIB" => 50,
+        "E" | "EB" | "EIB" => 60,
+        "Z" | "ZB" | "ZIB" => 70,
+        _ => {
+            log::trace!("numeric value '{}' ends with an invalid suffix", str);
+            return None;
+        }
+    };
+
+    if number_part.contains('.') {
+        let Ok(value): Result<f64, _> = number_part.parse() else {
+            log::trace!("numeric value '{}' is bad", str);
+            return None;
+        };
+
+        let scaled = value * ((1u64 << shift) as f64);
+
+        if !scaled.is_finite() || scaled < 0.0 || scaled > u64::MAX as f64 {
+            log::trace!("numeric value '{}' is too large", str);
+            return None;
+        }
+
+        Some(scaled as u64)
+    } else {
+        let Ok(value): Result<u64, _> = number_part.parse() else {
+            log::trace!("numeric value '{}' is bad", str);
+            return None;
+        };
+
+        let Some(shifted) = value.checked_shl(shift as u32) else {
+            log::trace!("numeric value '{}' is too large", str);
+            return None;
+        };
+
+        Some(shifted)
+    }
+}
+
+impl PartialEq for PropertyValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Number(s), Self::Number(o)) => s == o,
+            (Self::String(s), Self::String(o)) => s == o,
+            (Self::Number(s), Self::String(o)) => Some(s) == parse_number_with_suffix(o).as_ref(),
+            (Self::String(s), Self::Number(o)) => parse_number_with_suffix(s).as_ref() == Some(o),
         }
     }
 }
