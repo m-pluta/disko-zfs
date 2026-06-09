@@ -289,100 +289,7 @@ where
     desired_datasets.sort_by_key(|(key, _)| key.len());
 
     for (dataset_name, desired_dataset) in desired_datasets {
-        if let Some(actual_dataset) = actual.get_dataset(dataset_name) {
-            log::trace!("dataset {} already exists", dataset_name);
-
-            let mut properties = HashMap::new();
-
-            for (desired_property_name, desired_property) in &desired_dataset.properties {
-                if let Some(actual_property) = actual_dataset.get_property(desired_property_name) {
-                    if actual_property
-                        .source
-                        .as_ref()
-                        .map(|p| p.user_managed())
-                        .unwrap_or(false)
-                    {
-                        if actual_property.value != desired_property.value {
-                            match (&actual_property.value, &desired_property.value) {
-                                (PropertyValue::String(str), PropertyValue::Integer(int))
-                                    if is_k_syntax(str, &int) =>
-                                {
-                                    log::trace!(
-                                        "dataset {} property {} set to {}, guessing to be equal to {}, skip",
-                                        dataset_name,
-                                        desired_property_name,
-                                        actual_property.value.to_string(),
-                                        desired_property.value.to_string()
-                                    );
-                                }
-                                (PropertyValue::Integer(int), PropertyValue::String(str))
-                                    if is_k_syntax(str, &int) =>
-                                {
-                                    log::trace!(
-                                        "dataset {} property {} set to {}, guessing to be equal to {}, skip",
-                                        dataset_name,
-                                        desired_property_name,
-                                        actual_property.value.to_string(),
-                                        desired_property.value.to_string()
-                                    );
-                                }
-                                _ => {
-                                    log::trace!(
-                                        "dataset {} property {} set to {}, modify to {}",
-                                        dataset_name,
-                                        desired_property_name,
-                                        actual_property.value.to_string(),
-                                        desired_property.value.to_string()
-                                    );
-                                    properties.insert(
-                                        desired_property_name.to_owned(),
-                                        desired_property.to_owned(),
-                                    );
-                                }
-                            }
-                        } else {
-                            log::trace!(
-                                "dataset {} property {} already set to {}, skip",
-                                dataset_name,
-                                desired_property_name,
-                                desired_property.value.to_string()
-                            );
-                        }
-                    } else {
-                        log::trace!(
-                            "dataset {} property {} not normal, error",
-                            dataset_name,
-                            desired_property_name,
-                        );
-                        action_producer.produce_error(format!(
-                            "cannot set property {} of dataset {} because source is {:?}",
-                            desired_property_name, dataset_name, actual_property.source
-                        ))
-                    }
-                } else {
-                    log::trace!(
-                        "dataset {} property {} not set, set to {}",
-                        dataset_name,
-                        desired_property_name,
-                        desired_property.value.to_string(),
-                    );
-                    properties.insert(
-                        desired_property_name.to_owned(),
-                        desired_property.to_owned(),
-                    );
-                }
-            }
-
-            if !properties.is_empty() {
-                action_producer.produce_action(ZfsAction::SetProperties {
-                    dataset: dataset_name.to_owned(),
-                    properties: properties
-                        .into_iter()
-                        .map(|(k, v)| (k, v.value))
-                        .collect::<HashMap<_, _>>(),
-                })
-            }
-        } else {
+        let Some(actual_dataset) = actual.get_dataset(dataset_name) else {
             log::trace!("prepare dataset {}", dataset_name);
 
             for dataset_part in PrefixPaths::new(&dataset_name) {
@@ -410,6 +317,77 @@ where
                     .properties
                     .iter()
                     .map(|(k, v)| (k.clone(), v.value.clone()))
+                    .collect::<HashMap<_, _>>(),
+            });
+            continue;
+        };
+
+        log::trace!("dataset {} already exists", dataset_name);
+
+        let mut properties = HashMap::new();
+
+        for (desired_property_name, desired_property) in &desired_dataset.properties {
+            let Some(actual_property) = actual_dataset.get_property(desired_property_name) else {
+                log::trace!(
+                    "dataset {} property {} not set, set to {}",
+                    dataset_name,
+                    desired_property_name,
+                    desired_property.value.to_string(),
+                );
+                properties.insert(
+                    desired_property_name.to_owned(),
+                    desired_property.to_owned(),
+                );
+                continue;
+            };
+
+            if !actual_property
+                .source
+                .as_ref()
+                .map(|p| p.user_managed())
+                .unwrap_or(false)
+            {
+                log::trace!(
+                    "dataset {} property {} not normal, error",
+                    dataset_name,
+                    desired_property_name,
+                );
+                action_producer.produce_error(format!(
+                    "cannot set property {} of dataset {} because source is {:?}",
+                    desired_property_name, dataset_name, actual_property.source
+                ));
+                continue;
+            }
+
+            if actual_property.value == desired_property.value {
+                log::trace!(
+                    "dataset {} property {} already set to {}, skip",
+                    dataset_name,
+                    desired_property_name,
+                    desired_property.value.to_string()
+                );
+                continue;
+            }
+
+            log::trace!(
+                "dataset {} property {} set to {}, modify to {}",
+                dataset_name,
+                desired_property_name,
+                actual_property.value.to_string(),
+                desired_property.value.to_string()
+            );
+            properties.insert(
+                desired_property_name.to_owned(),
+                desired_property.to_owned(),
+            );
+        }
+
+        if !properties.is_empty() {
+            action_producer.produce_action(ZfsAction::SetProperties {
+                dataset: dataset_name.to_owned(),
+                properties: properties
+                    .into_iter()
+                    .map(|(k, v)| (k, v.value))
                     .collect::<HashMap<_, _>>(),
             })
         }
