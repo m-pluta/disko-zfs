@@ -1,15 +1,21 @@
+use crate::{
+    prefix_paths::PrefixPaths,
+    property::{PropertySource, PropertyValue},
+    zfs_list_output::{SpecificationFilter, ZfsList},
+    zfs_specification::{ZfsSpecification, ZfsSpecificationDataset},
+};
+use clap::Parser as _;
 use glob::Pattern;
-use log::{Level, LevelFilter};
+use log::Level;
 use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    io::{Read, Write},
-    iter::Filter,
-    path::PathBuf,
-    process::Command,
-    str::{FromStr, MatchIndices},
+    collections::HashMap, fs::File, io::Write, path::PathBuf, process::Command, str::FromStr,
 };
 use thiserror::Error;
+
+mod prefix_paths;
+mod property;
+mod zfs_list_output;
+mod zfs_specification;
 
 #[derive(Error, Debug)]
 pub enum ZfsDiskoError {
@@ -30,19 +36,6 @@ pub enum ZfsDiskoError {
     #[error("Couldn't serialize current ZFS specification to Nix")]
     SeriliazationNixCurrentSpecFailed(#[source] ser_nix::Error),
 }
-
-use clap::Parser as _;
-
-use crate::{
-    prefix_paths::PrefixPaths,
-    property::{PropertySource, PropertyValue},
-    zfs_list_output::{SpecificationFilter, ZfsList},
-    zfs_specification::{ZfsSpecification, ZfsSpecificationDataset},
-};
-mod prefix_paths;
-mod property;
-mod zfs_list_output;
-mod zfs_specification;
 
 #[derive(Debug)]
 enum ZfsAction {
