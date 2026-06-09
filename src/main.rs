@@ -240,24 +240,6 @@ trait ActionProducer {
     fn produce_error(&mut self, error: String);
 }
 
-fn is_k_syntax<S>(str: S, int: &i64) -> bool
-where
-    S: AsRef<str>,
-{
-    let str = str.as_ref();
-    let beginning = (str.ends_with("K") || str.ends_with("k"));
-    let end = i64::from_str(&str[..str.len() - 1])
-        .map(|parsed| parsed * 1024)
-        .unwrap_or(0);
-
-    log::trace!("beginning {} end {}", beginning, end);
-
-    (str.ends_with("K") || str.ends_with("k"))
-        && i64::from_str(&str[..str.len() - 1])
-            .map(|parsed| parsed * 1024 == *int)
-            .unwrap_or(false)
-}
-
 macro_rules! filter_by_pats {
     ( $iterator:expr, $pats:expr ) => {
         $iterator.filter(|(key, _)| $pats.iter().all(|pat| !pat.matches(key)))
