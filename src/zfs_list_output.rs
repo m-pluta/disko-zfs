@@ -119,9 +119,8 @@ impl ZfsList {
                 .map(|(k, v)| {
                     (
                         k,
-                        ZfsSpecificationDataset {
-                            properties: v
-                                .properties
+                        ZfsSpecificationDataset::new(
+                            v.properties
                                 .into_iter()
                                 .filter(|(k, _)| match &filter.properties {
                                     Some(property_filter) => property_filter.contains(k),
@@ -141,7 +140,7 @@ impl ZfsList {
                                     )
                                 })
                                 .collect::<HashMap<_, _>>(),
-                        },
+                        ),
                     )
                 })
                 .collect::<HashMap<_, _>>(),

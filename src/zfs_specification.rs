@@ -48,24 +48,20 @@ pub struct ZfsSpecificationDataset {
 }
 
 impl ZfsSpecificationDataset {
-    pub fn new<S>(properties: HashMap<S, PropertyValue>) -> ZfsSpecificationDataset
+    pub fn new<S>(properties: HashMap<S, Property>) -> ZfsSpecificationDataset
     where
         S: AsRef<str>,
     {
         ZfsSpecificationDataset {
             properties: properties
                 .into_iter()
-                .map(|(k, value)| {
-                    (
-                        k.as_ref().to_owned(),
-                        Property {
-                            value,
-                            source: None,
-                        },
-                    )
-                })
+                .map(|(k, value)| (k.as_ref().to_owned(), value))
                 .collect(),
         }
+    }
+
+    pub fn empty() -> ZfsSpecificationDataset {
+        ZfsSpecificationDataset::new::<String>(HashMap::new())
     }
 
     pub fn get_property<S>(&self, name: S) -> Option<&Property>
@@ -113,11 +109,9 @@ impl ZfsSpecification {
         for name in datasets_sorted {
             let name = name.clone();
             for dataset_prefix in PrefixPaths::new(&name) {
-                self.datasets.entry(dataset_prefix.to_string()).or_insert(
-                    ZfsSpecificationDataset {
-                        properties: HashMap::new(),
-                    },
-                );
+                self.datasets
+                    .entry(dataset_prefix.to_string())
+                    .or_insert(ZfsSpecificationDataset::empty());
             }
         }
     }

@@ -288,13 +288,13 @@ where
             .map(|(k, v)| {
                 (
                     k,
-                    ZfsSpecificationDataset {
-                        properties: filter_by_pats!(
+                    ZfsSpecificationDataset::new(
+                        filter_by_pats!(
                             v.properties.into_iter(),
                             ignored_properties.unwrap_or(&spec.ignored_properties)
                         )
                         .collect::<HashMap<_, _>>(),
-                    },
+                    ),
                 )
             })
             .collect::<HashMap<_, _>>(),
